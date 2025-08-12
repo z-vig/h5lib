@@ -1,5 +1,5 @@
 [project]
-name = "h5see"
+name = "h5lib"
 version = "0.1.0"
 description = "An Object-Oriented HDF5 Reader/Writer for Python."
 authors = [

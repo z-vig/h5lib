@@ -16,6 +16,9 @@ TYPE_ALIASES = "PathLike = str | os.PathLike | Path"
 FUNC_DEFS = "def add_file_to_library(file_path: PathLike) -> None: ..."
 INDENT = "    "
 
+if not PYI_FILE.exists():
+    PYI_FILE.touch()
+
 path_pattern = re.compile(r"\w:(?:\\\\\w+)+.hdf5")
 libcache_pattern = re.compile(
     r"libcache\s=\s\[(?:\r?\n\s{4}\"\w:(?:\\\\\w+)+.hdf5\",)+"
@@ -59,13 +62,21 @@ def build_bookshelf(
         reader.bookshelf.name,
         [(book.name.lower(), book.book_type) for book in (
             reader.bookshelf.books
+        )] + [(page.name.lower(), Page) for page in (
+            reader.bookshelf.loose_pages
         )]
     )
-    built_bookshelf = bookshelf_cls(
-        **{book.name.lower(): book.typed_object for book in (
+
+    books = {
+        book.name.lower(): book.typed_object for book in (
             reader.bookshelf.books
         )}
-    )
+    loose_pages = {
+        page.name.lower(): page for page in reader.bookshelf.loose_pages
+    }
+
+    bookshelf_constructor = {**books, **loose_pages}
+    built_bookshelf = bookshelf_cls(**bookshelf_constructor)
 
     reader.bookshelf.shelf_type = bookshelf_cls
     reader.bookshelf.typed_object = built_bookshelf
@@ -133,6 +144,12 @@ class StubFileString:
         self.libclass += "\nH5Library: H5LibraryClass\n"
 
     def add_bookshelf(self, shelf: Bookshelf) -> None:
+        global libcache
+
+        if shelf.path in libcache:
+            print(f"{shelf.name.lower()} is an already existing bookshelf.")
+            return None
+
         self.bookshelf_list.append(shelf)
         book_attr_types: dict[str, list[str]] = {}
         old_book_set = copy(self.book_set)
@@ -167,14 +184,12 @@ class StubFileString:
                 shelf.shelf_type.__name__,
                 [(k.lower(), v.type.__name__) for k, v in (
                     shelf.typed_object.__dataclass_fields__.items()
-                )
-                ]
+                )]
             )]
         )
 
         self._write_libclass()
 
-        global libcache
         libcache.append(shelf.path)
 
         self._write_libcache()
@@ -193,6 +208,27 @@ class StubFileString:
 
 
 class H5LibraryClass:
+    """
+    Represents several HDF5 files (Bookshelves) that have been stubbed to
+    enable statically-typed reading.
+
+    Parameters
+    ----------
+    None
+
+    Methods
+    -------
+    add_bookshelf()
+
+    Examples
+    --------
+    ```
+    from h5lib import H5Library  # warning: No bookshelves in the library.
+    mypath = ".../*.hdf5"
+    H5Library.add_bookshelf(mypath)
+    dataset = H5Library.bookshelf.book.page  # Fields are autocomplete enabled.
+    ```
+    """
     def __init__(self) -> None:
         global libcache
         starting_shelves = [build_bookshelf(i) for i in libcache]

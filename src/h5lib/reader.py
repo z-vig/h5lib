@@ -53,6 +53,7 @@ class Bookshelf:
     name: str
     path: str
     books: list[Book] = field(default_factory=list)
+    loose_pages: list[Page] = field(default_factory=list)
     shelf_type: type = str   # Class of the object below.
     typed_object: GenericDataclass = field(
         default_factory=default_typed_object
@@ -77,6 +78,19 @@ class HDF5Reader:
             Path(h5_path).__str__().replace("\\", "\\\\")
         )
         self._file.visititems(self._visitor)
+        if len(self._file.attrs) > 0:
+            for attr_name, attr in self._file.attrs.items():
+                if not (
+                    isinstance(attr, h5.Dataset) |
+                    isinstance(attr, np.ndarray)
+                ):
+                    continue
+
+                attr_page: Page = Page(
+                    name=attr_name,
+                    h5data=attr
+                )
+                self.bookshelf.loose_pages.append(attr_page)
 
     def _visitor(self, name, obj):
         if isinstance(obj, h5.Group):

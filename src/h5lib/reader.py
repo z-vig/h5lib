@@ -9,6 +9,7 @@ import h5py as h5  # type: ignore
 
 # Relative Imports
 from .types import PathLike
+
 # from .lazy_hdf5_loader import create_lazy_hdf5_dataclass
 
 
@@ -54,7 +55,7 @@ class Bookshelf:
     path: str
     books: list[Book] = field(default_factory=list)
     loose_pages: list[Page] = field(default_factory=list)
-    shelf_type: type = str   # Class of the object below.
+    shelf_type: type = str  # Class of the object below.
     typed_object: GenericDataclass = field(
         default_factory=default_typed_object
     )
@@ -71,25 +72,22 @@ class HDF5Reader:
     h5_path: PathLike
         Path to *.hdf5 file.
     """
+
     def __init__(self, h5_path: PathLike):
         self._file = h5.File(h5_path)
         self.bookshelf: Bookshelf = Bookshelf(
             Path(h5_path).stem.__str__().capitalize(),
-            Path(h5_path).__str__().replace("\\", "\\\\")
+            Path(h5_path).__str__().replace("\\", "\\\\"),
         )
         self._file.visititems(self._visitor)
         if len(self._file.attrs) > 0:
             for attr_name, attr in self._file.attrs.items():
                 if not (
-                    isinstance(attr, h5.Dataset) |
-                    isinstance(attr, np.ndarray)
+                    isinstance(attr, h5.Dataset) | isinstance(attr, np.ndarray)
                 ):
                     continue
 
-                attr_page: Page = Page(
-                    name=attr_name,
-                    h5data=attr
-                )
+                attr_page: Page = Page(name=attr_name, h5data=attr)
                 self.bookshelf.loose_pages.append(attr_page)
 
     def _visitor(self, name, obj):
@@ -104,8 +102,9 @@ class HDF5Reader:
 
             cls_constr: Book = Book(  # type: ignore
                 name=str(name),  # type: ignore
-                pages=[(Page(k, v))
-                       for k, v in zip(all_keys, all_vals)]  # type: ignore
+                pages=[
+                    (Page(k, v)) for k, v in zip(all_keys, all_vals)
+                ],  # type: ignore
             )  # type: ignore
 
             self.bookshelf.books.append(cls_constr)

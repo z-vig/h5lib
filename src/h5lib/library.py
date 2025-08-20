@@ -5,6 +5,7 @@ from dataclasses import make_dataclass
 from copy import copy
 import re
 from warnings import warn
+import os
 
 # Relative Imports
 from .types import PathLike
@@ -32,17 +33,15 @@ with open(PYI_FILE) as f:
     else:
         libcache_string = ""
 
-libcache = [Path(i).__str__() for i in (
-        re.findall(path_pattern, libcache_string)
-    )
+libcache = [
+    Path(i).__str__() for i in (re.findall(path_pattern, libcache_string))
 ]
 
 
 def bind_book(book: Book) -> None:
 
     book_cls = make_dataclass(
-        book.name.capitalize(),
-        [(page.name, Page) for page in book.pages]
+        book.name.capitalize(), [(page.name, Page) for page in book.pages]
     )
     bound_book = book_cls(**{page.name: page for page in book.pages})
 
@@ -50,9 +49,7 @@ def bind_book(book: Book) -> None:
     book.typed_object = bound_book
 
 
-def build_bookshelf(
-    file_path: PathLike
-) -> Bookshelf:
+def build_bookshelf(file_path: PathLike) -> Bookshelf:
     reader = HDF5Reader(file_path)
 
     for book in reader.bookshelf.books:
@@ -60,17 +57,20 @@ def build_bookshelf(
 
     bookshelf_cls = make_dataclass(
         reader.bookshelf.name,
-        [(book.name.lower(), book.book_type) for book in (
-            reader.bookshelf.books
-        )] + [(page.name.lower(), Page) for page in (
-            reader.bookshelf.loose_pages
-        )]
+        [
+            (book.name.lower(), book.book_type)
+            for book in (reader.bookshelf.books)
+        ]
+        + [
+            (page.name.lower(), Page)
+            for page in (reader.bookshelf.loose_pages)
+        ],
     )
 
     books = {
-        book.name.lower(): book.typed_object for book in (
-            reader.bookshelf.books
-        )}
+        book.name.lower(): book.typed_object
+        for book in (reader.bookshelf.books)
+    }
     loose_pages = {
         page.name.lower(): page for page in reader.bookshelf.loose_pages
     }
@@ -89,7 +89,7 @@ class StubFileString:
         self,
         # h5lib: H5Library,
         import_list: list[Tuple[str, str]] = [],
-        starting_bookshelves: list[Bookshelf] = []
+        starting_bookshelves: list[Bookshelf] = [],
     ):
         import_list += [("pathlib", "Path"), ("", "os")]
         self.import_statements = ""
@@ -117,12 +117,11 @@ class StubFileString:
             return
         self.libcache = "\n\nlibcache = [\n"
         for shelf in self.bookshelf_list:
-            self.libcache += f"{INDENT}\"{shelf.path}\",\n"
+            self.libcache += f'{INDENT}"{shelf.path}",\n'
         self.libcache += "]\n"
 
     def _write_classes(
-        self,
-        class_list: list[Tuple[str, Sequence[Tuple[str, str]]]]
+        self, class_list: list[Tuple[str, Sequence[Tuple[str, str]]]]
     ):
         for class_name, attr_list in class_list:
             self.classes += f"class {class_name}:"
@@ -137,10 +136,13 @@ class StubFileString:
     def _write_libclass(self):
         self.libclass = "class H5LibraryClass:\n"
         for i in self.bookshelf_list:
-            self.libclass += f"{INDENT}{i.name.lower()}: "\
-                f"{i.name.capitalize()}\n"
-        self.libclass += f"{INDENT}def add_bookshelf(self, "\
+            self.libclass += (
+                f"{INDENT}{i.name.lower()}: " f"{i.name.capitalize()}\n"
+            )
+        self.libclass += (
+            f"{INDENT}def add_bookshelf(self, "
             "p: PathLike | Bookshelf) -> None: ...\n\n"
+        )
         self.libclass += "\nH5Library: H5LibraryClass\n"
 
     def add_bookshelf(self, shelf: Bookshelf) -> None:
@@ -157,35 +159,43 @@ class StubFileString:
             self.book_set.add(
                 (
                     book.book_type.__name__,
-                    tuple(book.typed_object.__dataclass_fields__.keys())
+                    tuple(book.typed_object.__dataclass_fields__.keys()),
                 )
             )
             book_attr_types[book.book_type.__name__] = [
-                i.type.__name__ for i in (
-                    book.typed_object.__dataclass_fields__.values()
-                )
+                i.type.__name__
+                for i in (book.typed_object.__dataclass_fields__.values())
             ]
         book_set_with_types: list[Tuple[str, Sequence[Tuple[str, str]]]] = []
         for class_name, class_attr in self.book_set - old_book_set:
             book_set_with_types.append(
-                (class_name, [
-                    (attr_name, attr_type) for attr_name, attr_type in zip(
-                        class_attr, book_attr_types[class_name]
-                    )
-                ])
+                (
+                    class_name,
+                    [
+                        (attr_name, attr_type)
+                        for attr_name, attr_type in zip(
+                            class_attr, book_attr_types[class_name]
+                        )
+                    ],
+                )
             )
 
-        self._write_classes([
-            (cls_nm, cls_attrs) for cls_nm, cls_attrs in book_set_with_types
-        ])
+        self._write_classes(
+            [(cls_nm, cls_attrs) for cls_nm, cls_attrs in book_set_with_types]
+        )
 
         self._write_classes(
-            [(
-                shelf.shelf_type.__name__,
-                [(k.lower(), v.type.__name__) for k, v in (
-                    shelf.typed_object.__dataclass_fields__.items()
-                )]
-            )]
+            [
+                (
+                    shelf.shelf_type.__name__,
+                    [
+                        (k.lower(), v.type.__name__)
+                        for k, v in (
+                            shelf.typed_object.__dataclass_fields__.items()
+                        )
+                    ],
+                )
+            ]
         )
 
         self._write_libclass()
@@ -229,19 +239,20 @@ class H5LibraryClass:
     dataset = H5Library.bookshelf.book.page  # Fields are autocomplete enabled.
     ```
     """
+
     def __init__(self) -> None:
         global libcache
         starting_shelves = [build_bookshelf(i) for i in libcache]
 
         self._stub_file = StubFileString(
-            import_list=[(".reader", "Page"),
-                         (".reader", "Bookshelf")],
-            starting_bookshelves=starting_shelves
+            import_list=[(".reader", "Page"), (".reader", "Bookshelf")],
+            starting_bookshelves=starting_shelves,
         )
 
         for shelf in starting_shelves:
-            setattr(self, shelf.shelf_type.__name__.lower(),
-                    shelf.typed_object)
+            setattr(
+                self, shelf.shelf_type.__name__.lower(), shelf.typed_object
+            )
 
         self._stub_file._write_libclass()
         self._stub_file.compile()
@@ -256,6 +267,9 @@ class H5LibraryClass:
         setattr(self, shelf.shelf_type.__name__.lower(), shelf.typed_object)
         self._stub_file.add_bookshelf(shelf)
         self._stub_file.compile()
+
+    def clear(self):
+        os.remove(PYI_FILE)
 
 
 H5Library = H5LibraryClass()

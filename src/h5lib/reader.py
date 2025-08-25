@@ -74,7 +74,7 @@ class HDF5Reader:
     """
 
     def __init__(self, h5_path: PathLike):
-        self._file = h5.File(h5_path)
+        self._file = h5.File(h5_path, "r")
         self.bookshelf: Bookshelf = Bookshelf(
             Path(h5_path).stem.__str__().capitalize(),
             Path(h5_path).__str__().replace("\\", "\\\\"),

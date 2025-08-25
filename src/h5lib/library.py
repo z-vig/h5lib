@@ -49,7 +49,7 @@ def bind_book(book: Book) -> None:
     book.typed_object = bound_book
 
 
-def build_bookshelf(file_path: PathLike) -> Bookshelf:
+def build_bookshelf(file_path: PathLike) -> HDF5Reader:
     reader = HDF5Reader(file_path)
 
     for book in reader.bookshelf.books:
@@ -81,7 +81,7 @@ def build_bookshelf(file_path: PathLike) -> Bookshelf:
     reader.bookshelf.shelf_type = bookshelf_cls
     reader.bookshelf.typed_object = built_bookshelf
 
-    return reader.bookshelf
+    return reader
 
 
 class StubFileString:
@@ -242,7 +242,11 @@ class H5LibraryClass:
 
     def __init__(self) -> None:
         global libcache
-        starting_shelves = [build_bookshelf(i) for i in libcache]
+        starting_readers = [build_bookshelf(i) for i in libcache]
+        self.reader_lookup: dict[str, HDF5Reader] = {
+            i: j for i, j in zip(libcache, starting_readers)
+        }
+        starting_shelves = [i.bookshelf for i in starting_readers]
 
         self._stub_file = StubFileString(
             import_list=[(".reader", "Page"), (".reader", "Bookshelf")],
@@ -257,25 +261,25 @@ class H5LibraryClass:
         self._stub_file._write_libclass()
         self._stub_file.compile()
 
-    def add_bookshelf(self, p: Bookshelf | PathLike) -> None:
-        if isinstance(p, PathLike):
-            global libcache
-            libcache.append(Path(p).__str__())
-            shelf = build_bookshelf(p)
-        else:
-            shelf = p
+    def add_bookshelf(self, p: PathLike) -> None:
+        global libcache
+        libcache.append(Path(p).__str__())
+        reader = build_bookshelf(p)
+        self.reader_lookup[p.__str__()] = reader
+        shelf = reader.bookshelf
+
         setattr(self, shelf.shelf_type.__name__.lower(), shelf.typed_object)
         self._stub_file.add_bookshelf(shelf)
         self._stub_file.compile()
 
+    def close_bookshelf(self, p: PathLike) -> None:
+        reader = self.reader_lookup[Path(p).__str__()]
+        reader.close_file()
+
     def clear(self):
+        for rdr in self.reader_lookup.values():
+            rdr.close_file()
         os.remove(PYI_FILE)
 
 
 H5Library = H5LibraryClass()
-
-
-def add_file_to_library(filepath: PathLike) -> None:
-    global H5Library
-    shelf = build_bookshelf(filepath)
-    H5Library.add_bookshelf(shelf)

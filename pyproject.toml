@@ -1,6 +1,6 @@
 [project]
 name = "h5lib"
-version = "0.1.0"
+version = "0.1.1"
 description = "An Object-Oriented HDF5 Reader/Writer for Python."
 authors = [
     {name = "Z.M. Vig",email = "zvig@umd.edu"}
